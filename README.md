@@ -24,7 +24,7 @@ The given trained models are based on a random sample of files from ASVSpoof2019
 
 
 # Getting started:
-It works on both CPU and GPU, however, the AASIST algorithm requires >10GB ram on CPU and GPU for explainability algorithms. As a result, a GPU with >12GB RAM is recommended 
+It works on both CPU and GPU, however, the AASIST algorithm requires >10GB ram on CPU and GPU for explainability. As a result, a GPU with >12GB RAM is recommended 
 - Pip install -r requirements.txt
 - Open dashboard in Jupyter 
 - Upload audio sample 
