@@ -11,6 +11,7 @@ def resnet1d(test_loader, model, device):
         infer = model(test_batch)
     return infer.detach().cpu()
 
+
 def aasist(test_loader, model, device):
     for batch_x in test_loader:
         batch_x = batch_x.to(device)

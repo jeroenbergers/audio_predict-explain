@@ -11,6 +11,7 @@ from skimage.color import gray2rgb
 from skimage.color import rgb2gray
 
 num_samples = 1000
+samples_per_batch = 40
 features = 50000
 weights_1d_resnet = "/time_frame_149_1d-resnet_Loss_0.0003_dEER_0.81%_eEER_0.76%.pth"
 weights_2d_resnet = "/cqt_23_2d-resnet_Loss_0.004_dEER_0.77%_eEER_0.89%.pth"
@@ -23,39 +24,40 @@ def batch_predict_1d_resnet(sample):
     sample = rgb2gray(sample)
     sample = torch.tensor(sample, dtype=torch.float32)
 
-    test_loader = DataLoader(sample, batch_size=100, shuffle=False, num_workers=6)
+    test_loader = DataLoader(sample, batch_size=samples_per_batch, shuffle=False, num_workers=6)
     for test_batch in test_loader:
         test_batch = torch.unsqueeze(test_batch, 1)
         test_batch = torch.squeeze(test_batch,3)
         test_batch = test_batch.to(device)
         infer = model(test_batch)
 
-    return(infer.detach().cpu().numpy())
+    return infer.detach().cpu().numpy()
 
 
-def explain_1d_resnet(file):
+def explain_1d_resnet(file, kernel_size=0.01, random_state=42, sample_n=3000):
 
     file3d = gray2rgb(np.expand_dims(file, 1))
-
-    explainer = lime_image.LimeImageExplainer(kernel_width=0.5, random_state=40)
+    explainer = lime_image.LimeImageExplainer(kernel_width=kernel_size, random_state=random_state, verbose=True)
     explanation = explainer.explain_instance(file3d,
                                              batch_predict_1d_resnet,  # classification function
-                                             batch_size=100,
+                                             batch_size=samples_per_batch,
                                              num_features=features,
-                                             num_samples=num_samples)  # number of images that will be sent to classification function
+                                             num_samples=sample_n)  # number of images that will be sent to classification function
 
     torch.cuda.empty_cache()
 
     explanation = explanation.image.T[0][0]
-    explanation[explanation > explanation] = 0
+    print(explanation.sum())
+    explanation[explanation < 0] = 0
 
-    return abs(explanation)
+    return explanation
+
 
 def batch_predict_2d_resnet(cqt):
     model, device = prepare.load_2d_resnet(weights_2d_resnet)
     sample = rgb2gray(cqt)
 
-    test_loader = DataLoader(sample, batch_size=100, shuffle=False, num_workers=3)
+    test_loader = DataLoader(sample, batch_size=samples_per_batch, shuffle=False, num_workers=3)
     for test_batch in test_loader:
         test_batch = test_batch.to(device=device, dtype=torch.float)
         test_batch = torch.unsqueeze(test_batch, 1)
@@ -66,16 +68,16 @@ def batch_predict_2d_resnet(cqt):
 
 def explain_2d_resnet(cqt):
 
-
-    explainer = lime_image.LimeImageExplainer(kernel_width=0.5, random_state=40)
+    explainer = lime_image.LimeImageExplainer(kernel_width=0.001, random_state=40)
     explanation = explainer.explain_instance(cqt,
                                              batch_predict_2d_resnet,  # classification function
-                                             batch_size=100,
+                                             batch_size=samples_per_batch,
                                              num_features=features,
-                                             num_samples=num_samples)  # number of images that will be sent to classification function
+                                             num_samples=3000)  # number of images that will be sent to classification function
 
     torch.cuda.empty_cache()
     return explanation.image.T[0].T
+
 
 def batch_predict_aasist(file):
     model, device = prepare.load_aasist(weights_AASIST)
@@ -88,6 +90,7 @@ def batch_predict_aasist(file):
 
     return infer.detach().cpu().numpy()
 
+
 def pad(x, max_len=64600):
     x_len = x.shape[0]
     if x_len >= max_len:
@@ -97,9 +100,10 @@ def pad(x, max_len=64600):
     padded_x = np.tile(x, (1, num_repeats))[:, :max_len][0]
     return padded_x
 
+
 def explain_aasist(file):
     X_pad = pad(file, 64600)
-    x_inp = Tensor(X_pad)
+    x_inp = Tensor(file)
     file3d = gray2rgb(np.expand_dims(x_inp, 1))
     explainer = lime_image.LimeImageExplainer(kernel_width=0.5, random_state=40)
     explanation = explainer.explain_instance(file3d,
